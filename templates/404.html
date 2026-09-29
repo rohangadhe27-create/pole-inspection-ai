@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Page Not Found - Power Line Pole AI{% endblock %}
+{% block page_title %}404 - Not Found{% endblock %}
+
+{% block content %}
+<div class="card border-0 shadow-sm rounded-3 text-center p-5">
+    <div class="mb-3 text-muted">
+        <i class="fa-solid fa-triangle-exclamation" style="font-size: 4rem; opacity: 0.4;"></i>
+    </div>
+    <h3 class="fw-bold text-dark">Resource Not Found</h3>
+    <p class="text-muted">The requested pole asset or inspection record does not exist.</p>
+    <div>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-primary">Return to Dashboard</a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}Inspections Log - Power Line Pole AI{% endblock %}
+{% block page_title %}Inspection Records Log{% endblock %}
+
+{% block content %}
+<div class="card border-0 shadow-sm rounded-3">
+    <!-- Filter Bar Header -->
+    <div class="card-header bg-white border-bottom py-3">
+        <form method="GET" action="{{ url_for('inspection.list_inspections') }}" class="row g-2 align-items-center">
+            <div class="col-md-3">
+                <input type="text" name="pole_id" class="form-control form-control-sm mono-text" placeholder="Filter Pole ID..." value="{{ pole_filter }}">
+            </div>
+            <div class="col-md-3">
+                <select name="severity" class="form-select form-select-sm">
+                    <option value="">All Severities</option>
+                    <option value="HIGH" {% if severity_filter == 'HIGH' %}selected{% endif %}>HIGH Severity</option>
+                    <option value="MEDIUM" {% if severity_filter == 'MEDIUM' %}selected{% endif %}>MEDIUM Severity</option>
+                    <option value="LOW" {% if severity_filter == 'LOW' %}selected{% endif %}>LOW / NORMAL</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select name="defect" class="form-select form-select-sm">
+                    <option value="">All Defect Classes</option>
+                    {% for cls in defect_classes %}
+                        <option value="{{ cls }}" {% if defect_filter == cls %}selected{% endif %}>{{ cls }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm flex-grow-1"><i class="fa-solid fa-filter me-1"></i> Apply Filter</button>
+                <a href="{{ url_for('inspection.list_inspections') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Table -->
+    <div class="table-responsive">
+        <table class="table table-custom table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Pole ID</th>
+                    <th>Date & Time</th>
+                    <th>Image</th>
+                    <th>Defect Classification</th>
+                    <th>Confidence</th>
+                    <th>Severity</th>
+                    <th>Maintenance Recommendation</th>
+                    <th class="text-end">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if inspections %}
+                    {% for insp in inspections %}
+                    <tr>
+                        <td class="mono-text small">#{{ insp.inspection_id }}</td>
+                        <td>
+                            <a href="{{ url_for('poles.pole_history', pole_id=insp.pole_id) }}" class="pole-badge text-decoration-none">
+                                {{ insp.pole_id }}
+                            </a>
+                        </td>
+                        <td class="text-muted small">{{ insp.inspection_date }}</td>
+                        <td>
+                            <button type="button" class="btn p-0 border-0" onclick="showImageModal('/{{ insp.image_path }}', '{{ insp.pole_id }}', '{{ insp.defect_type }}')">
+                                <img src="/{{ insp.image_path }}" alt="Inspection" class="rounded border" style="width: 50px; height: 38px; object-fit: cover;">
+                            </button>
+                        </td>
+                        <td><span class="fw-semibold text-dark">{{ insp.defect_type }}</span></td>
+                        <td>
+                            <span class="mono-text small">{{ insp.confidence }}%</span>
+                        </td>
+                        <td>
+                            {% if insp.severity == 'HIGH' %}
+                                <span class="badge-status-critical">HIGH</span>
+                            {% elif insp.severity == 'MEDIUM' %}
+                                <span class="badge-status-warning">MEDIUM</span>
+                            {% else %}
+                                <span class="badge-status-normal">LOW</span>
+                            {% endif %}
+                        </td>
+                        <td class="small text-muted">{{ insp.recommendation }}</td>
+                        <td class="text-end">
+                            <a href="{{ url_for('poles.pole_history', pole_id=insp.pole_id) }}" class="btn btn-sm btn-light border py-1" title="View History">
+                                <i class="fa-solid fa-clock-rotate-left"></i> History
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center py-5 text-muted">
+                            No inspection records found.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Image Viewer Modal -->
+<div class="modal fade" id="imageViewerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold" id="modalTitle">Inspection Image</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center p-0 bg-dark">
+                <img id="modalImg" src="" alt="Enlarged Inspection" class="img-fluid" style="max-height: 550px;">
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function showImageModal(src, poleId, defect) {
+        document.getElementById('modalImg').src = src;
+        document.getElementById('modalTitle').textContent = `Inspection on Pole ${poleId} - ${defect}`;
+        new bootstrap.Modal(document.getElementById('imageViewerModal')).show();
+    }
+</script>
+{% endblock %}

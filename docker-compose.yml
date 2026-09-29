@@ -1,0 +1,15 @@
+services:
+  web:
+    build: .
+    container_name: powerline_ai_app
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - SECRET_KEY=production-secure-key-2026
+      - DB_TYPE=sqlite
+      - PORT=5000
+    volumes:
+      - ./database:/app/database
+      - ./static/uploads:/app/static/uploads
+      - ./model:/app/model

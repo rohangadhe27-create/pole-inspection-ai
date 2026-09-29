@@ -1,0 +1,52 @@
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Heavy datasets and training runs
+datasets/
+CPLID/
+runs/
+*.mp4
+*.avi
+yolov8n.pt
+
+# User uploaded inspections & annotations (production should use S3/Cloud Storage)
+static/uploads/inspections/insp_*
+static/uploads/annotated/annotated_*
+
+# SQLite database file (production usually uses MySQL / cloud Postgres)
+database/power_line_inspection.db
+
+# Environment variables & secrets
+.env
+.env.local
+
+# IDEs & System files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

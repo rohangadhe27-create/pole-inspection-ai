@@ -1,0 +1,368 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Power Line Pole Inspection AI{% endblock %}
+{% block page_title %}Operational Dashboard{% endblock %}
+
+{% block content %}
+<!-- Metric Cards Row -->
+<div class="row g-3 mb-4">
+    <!-- Card 1: Total Poles -->
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="metric-card">
+            <div class="metric-info">
+                <span class="metric-label">Total Poles</span>
+                <span class="metric-value">{{ total_poles }}</span>
+            </div>
+            <div class="metric-icon-wrap blue">
+                <i class="fa-solid fa-tower-observation"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 2: Total Inspected -->
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="metric-card">
+            <div class="metric-info">
+                <span class="metric-label">Inspections</span>
+                <span class="metric-value">{{ total_inspections }}</span>
+            </div>
+            <div class="metric-icon-wrap purple">
+                <i class="fa-solid fa-clipboard-check"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 3: Normal Poles -->
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="metric-card">
+            <div class="metric-info">
+                <span class="metric-label">Normal Poles</span>
+                <span class="metric-value text-success">{{ normal_poles }}</span>
+            </div>
+            <div class="metric-icon-wrap green">
+                <i class="fa-solid fa-circle-check"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 4: Total Defects -->
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="metric-card">
+            <div class="metric-info">
+                <span class="metric-label">Defects Detected</span>
+                <span class="metric-value text-warning">{{ total_defects }}</span>
+            </div>
+            <div class="metric-icon-wrap amber">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 5: Critical Defects -->
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="metric-card">
+            <div class="metric-info">
+                <span class="metric-label">Critical Defects</span>
+                <span class="metric-value text-danger">{{ critical_defects }}</span>
+            </div>
+            <div class="metric-icon-wrap red">
+                <i class="fa-solid fa-radiation"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 6: Pending Maintenance -->
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="metric-card">
+            <div class="metric-info">
+                <span class="metric-label">Pending Maint.</span>
+                <span class="metric-value">{{ pending_maintenance }}</span>
+            </div>
+            <div class="metric-icon-wrap amber">
+                <i class="fa-solid fa-wrench"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Section Row -->
+<div class="row g-4 mb-4">
+    <!-- Chart 1: Defect Distribution -->
+    <div class="col-lg-4 col-md-6">
+        <div class="card border-0 shadow-sm rounded-3 h-100">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h6 class="card-title m-0 fw-bold text-dark">
+                    <i class="fa-solid fa-chart-pie me-2 text-primary"></i>Defect Classification
+                </h6>
+                <span class="badge bg-light text-muted border">YOLO Output</span>
+            </div>
+            <div class="card-body d-flex flex-column align-items-center justify-content-center">
+                <div style="position: relative; height: 230px; width: 100%;">
+                    <canvas id="defectChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart 2: Pole Status Distribution -->
+    <div class="col-lg-4 col-md-6">
+        <div class="card border-0 shadow-sm rounded-3 h-100">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h6 class="card-title m-0 fw-bold text-dark">
+                    <i class="fa-solid fa-signal me-2 text-primary"></i>Pole Network Health
+                </h6>
+                <span class="badge bg-light text-muted border">Asset Status</span>
+            </div>
+            <div class="card-body d-flex flex-column align-items-center justify-content-center">
+                <div style="position: relative; height: 230px; width: 100%;">
+                    <canvas id="poleStatusChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart 3: Maintenance Workflow -->
+    <div class="col-lg-4 col-md-12">
+        <div class="card border-0 shadow-sm rounded-3 h-100">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h6 class="card-title m-0 fw-bold text-dark">
+                    <i class="fa-solid fa-bars-progress me-2 text-primary"></i>Maintenance Workflow
+                </h6>
+                <a href="{{ url_for('maintenance.list_maintenance') }}" class="small text-decoration-none">Manage &rarr;</a>
+            </div>
+            <div class="card-body d-flex flex-column align-items-center justify-content-center">
+                <div style="position: relative; height: 230px; width: 100%;">
+                    <canvas id="maintChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Inspections & Urgent Tasks Row -->
+<div class="row g-4">
+    <!-- Recent Inspections Table -->
+    <div class="col-xl-8">
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h6 class="card-title m-0 fw-bold text-dark">
+                    <i class="fa-solid fa-list-check me-2 text-primary"></i>Recent Inspections
+                </h6>
+                <a href="{{ url_for('inspection.list_inspections') }}" class="btn btn-outline-primary btn-sm">
+                    View All Inspections
+                </a>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-custom table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Pole ID</th>
+                            <th>Date</th>
+                            <th>Defect Type</th>
+                            <th>Confidence</th>
+                            <th>Severity</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if recent_inspections %}
+                            {% for insp in recent_inspections %}
+                            <tr>
+                                <td>
+                                    <a href="{{ url_for('poles.pole_history', pole_id=insp.pole_id) }}" class="pole-badge text-decoration-none">
+                                        {{ insp.pole_id }}
+                                    </a>
+                                </td>
+                                <td class="text-muted small">{{ insp.inspection_date[:16] if insp.inspection_date else '-' }}</td>
+                                <td>
+                                    <span class="fw-semibold">{{ insp.defect_type }}</span>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="mono-text small">{{ insp.confidence }}%</span>
+                                        <div class="progress flex-grow-1" style="height: 6px; width: 45px;">
+                                            <div class="progress-bar bg-primary" role="progressbar" style="width: {{ insp.confidence }}%"></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if insp.severity == 'HIGH' or insp.severity == 'CRITICAL' %}
+                                        <span class="badge-status-critical"><i class="fa-solid fa-circle-exclamation"></i> HIGH</span>
+                                    {% elif insp.severity == 'MEDIUM' %}
+                                        <span class="badge-status-warning"><i class="fa-solid fa-triangle-exclamation"></i> MEDIUM</span>
+                                    {% else %}
+                                        <span class="badge-status-normal"><i class="fa-solid fa-check-circle"></i> LOW</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('poles.pole_history', pole_id=insp.pole_id) }}" class="btn btn-sm btn-light border py-1 px-2" title="View Pole History">
+                                        <i class="fa-solid fa-clock-rotate-left"></i> History
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-muted">
+                                    No inspections found. Click <strong>New Inspection</strong> to start.
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Maintenance Tasks Card -->
+    <div class="col-xl-4">
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h6 class="card-title m-0 fw-bold text-dark">
+                    <i class="fa-solid fa-wrench me-2 text-warning"></i>Active Maintenance
+                </h6>
+                <a href="{{ url_for('maintenance.list_maintenance') }}" class="btn btn-outline-secondary btn-sm">
+                    View All
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% if recent_maintenance %}
+                        {% for m in recent_maintenance %}
+                        <div class="list-group-item p-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <a href="{{ url_for('poles.pole_history', pole_id=m.pole_id) }}" class="pole-badge text-decoration-none">
+                                    {{ m.pole_id }}
+                                </a>
+                                {% if m.status == 'Pending' %}
+                                    <span class="badge bg-danger-subtle text-danger border border-danger">Pending</span>
+                                {% elif m.status == 'Assigned' %}
+                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning">Assigned</span>
+                                {% elif m.status == 'In Progress' %}
+                                    <span class="badge bg-primary-subtle text-primary border border-primary">In Progress</span>
+                                {% elif m.status == 'Repaired' %}
+                                    <span class="badge bg-info-subtle text-info-emphasis border border-info">Repaired</span>
+                                {% else %}
+                                    <span class="badge bg-success-subtle text-success border border-success">Verified</span>
+                                {% endif %}
+                            </div>
+                            <p class="mb-1 small fw-semibold text-dark">{{ m.action }}</p>
+                            <div class="d-flex justify-content-between text-muted small">
+                                <span><i class="fa-solid fa-user me-1"></i> {{ m.assigned_to or 'Unassigned' }}</span>
+                                <span class="mono-text">{{ m.maintenance_date[:10] if m.maintenance_date else '' }}</span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-4 text-muted">
+                            No active maintenance tasks.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Embed Flask data into JavaScript variables
+    const defectLabels = {{ defect_labels|tojson }};
+    const defectData = {{ defect_data|tojson }};
+    const poleStatusLabels = {{ pole_status_labels|tojson }};
+    const poleStatusData = {{ pole_status_data|tojson }};
+    const maintLabels = {{ maint_labels|tojson }};
+    const maintData = {{ maint_data|tojson }};
+
+    // 1. Defect Distribution Chart
+    const ctxDefect = document.getElementById('defectChart').getContext('2d');
+    new Chart(ctxDefect, {
+        type: 'doughnut',
+        data: {
+            labels: defectLabels.length ? defectLabels : ['No Data'],
+            datasets: [{
+                data: defectData.length ? defectData : [1],
+                backgroundColor: [
+                    '#10b981', // Good Insulator (Green)
+                    '#ef4444', // Broken Insulator (Red)
+                    '#f59e0b', // Flashover (Amber)
+                    '#8b5cf6', // Corrosion (Purple)
+                    '#06b6d4'
+                ],
+                borderWidth: 2,
+                borderColor: '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } }
+            },
+            cutout: '68%'
+        }
+    });
+
+    // 2. Pole Status Distribution Chart
+    const ctxPole = document.getElementById('poleStatusChart').getContext('2d');
+    new Chart(ctxPole, {
+        type: 'pie',
+        data: {
+            labels: poleStatusLabels,
+            datasets: [{
+                data: poleStatusData,
+                backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+                borderWidth: 2,
+                borderColor: '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } }
+            }
+        }
+    });
+
+    // 3. Maintenance Workflow Progress Chart
+    const ctxMaint = document.getElementById('maintChart').getContext('2d');
+    new Chart(ctxMaint, {
+        type: 'bar',
+        data: {
+            labels: maintLabels,
+            datasets: [{
+                label: 'Tasks',
+                data: maintData,
+                backgroundColor: [
+                    'rgba(239, 68, 68, 0.85)',   // Pending
+                    'rgba(245, 158, 11, 0.85)',  // Assigned
+                    'rgba(37, 99, 235, 0.85)',   // In Progress
+                    'rgba(14, 165, 233, 0.85)',  // Repaired
+                    'rgba(16, 185, 129, 0.85)'   // Verified
+                ],
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { precision: 0, font: { size: 10 } },
+                    grid: { color: '#f1f5f9' }
+                },
+                x: {
+                    ticks: { font: { size: 10 } },
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

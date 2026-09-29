@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block title %}Pole Inventory - Power Line Pole AI{% endblock %}
+{% block page_title %}Transmission & Distribution Poles{% endblock %}
+
+{% block content %}
+<!-- Top Metrics & Filter Bar -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3 col-sm-6">
+        <a href="{{ url_for('poles.list_poles') }}" class="text-decoration-none">
+            <div class="metric-card {% if not status_filter %}border-primary{% endif %}">
+                <div class="metric-info">
+                    <span class="metric-label">All Poles</span>
+                    <span class="metric-value">{{ total_count }}</span>
+                </div>
+                <div class="metric-icon-wrap blue"><i class="fa-solid fa-network-wired"></i></div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <a href="{{ url_for('poles.list_poles', status='Normal') }}" class="text-decoration-none">
+            <div class="metric-card {% if status_filter == 'Normal' %}border-success{% endif %}">
+                <div class="metric-info">
+                    <span class="metric-label">Normal</span>
+                    <span class="metric-value text-success">{{ normal_count }}</span>
+                </div>
+                <div class="metric-icon-wrap green"><i class="fa-solid fa-circle-check"></i></div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <a href="{{ url_for('poles.list_poles', status='Warning') }}" class="text-decoration-none">
+            <div class="metric-card {% if status_filter == 'Warning' %}border-warning{% endif %}">
+                <div class="metric-info">
+                    <span class="metric-label">Warning</span>
+                    <span class="metric-value text-warning">{{ warning_count }}</span>
+                </div>
+                <div class="metric-icon-wrap amber"><i class="fa-solid fa-triangle-exclamation"></i></div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <a href="{{ url_for('poles.list_poles', status='Critical') }}" class="text-decoration-none">
+            <div class="metric-card {% if status_filter == 'Critical' %}border-danger{% endif %}">
+                <div class="metric-info">
+                    <span class="metric-label">Critical</span>
+                    <span class="metric-value text-danger">{{ critical_count }}</span>
+                </div>
+                <div class="metric-icon-wrap red"><i class="fa-solid fa-radiation"></i></div>
+            </div>
+        </a>
+    </div>
+</div>
+
+<!-- Main Table Card -->
+<div class="card border-0 shadow-sm rounded-3">
+    <div class="card-header bg-white border-bottom py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <h6 class="card-title m-0 fw-bold text-dark">
+                <i class="fa-solid fa-tower-broadcast me-2 text-primary"></i>Pole Asset Inventory
+            </h6>
+            {% if status_filter %}
+                <span class="badge bg-primary">Filter: {{ status_filter }}</span>
+                <a href="{{ url_for('poles.list_poles') }}" class="small text-muted text-decoration-none">&times; Clear</a>
+            {% endif %}
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+            <!-- Search Form -->
+            <form method="GET" action="{{ url_for('poles.list_poles') }}" class="d-flex gap-1">
+                {% if status_filter %}
+                    <input type="hidden" name="status" value="{{ status_filter }}">
+                {% endif %}
+                <input type="text" name="q" class="form-control form-control-sm mono-text" placeholder="Search Pole ID..." value="{{ search_query }}">
+                <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="fa-solid fa-search"></i></button>
+            </form>
+
+            <!-- Add Pole Button -->
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addPoleModal">
+                <i class="fa-solid fa-plus me-1"></i> Add Pole
+            </button>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-custom table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Pole ID</th>
+                    <th>Latitude</th>
+                    <th>Longitude</th>
+                    <th>Installed Date</th>
+                    <th>Asset Health Status</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if poles %}
+                    {% for pole in poles %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('poles.pole_history', pole_id=pole.pole_id) }}" class="pole-badge text-decoration-none">
+                                {{ pole.pole_id }}
+                            </a>
+                        </td>
+                        <td class="mono-text small">{{ "%.6f"|format(pole.latitude) }}</td>
+                        <td class="mono-text small">{{ "%.6f"|format(pole.longitude) }}</td>
+                        <td class="text-muted small">{{ pole.installation_date or 'N/A' }}</td>
+                        <td>
+                            {% if pole.status == 'Normal' %}
+                                <span class="badge-status-normal"><i class="fa-solid fa-circle-check"></i> Normal</span>
+                            {% elif pole.status == 'Warning' %}
+                                <span class="badge-status-warning"><i class="fa-solid fa-triangle-exclamation"></i> Warning</span>
+                            {% elif pole.status == 'Critical' %}
+                                <span class="badge-status-critical"><i class="fa-solid fa-radiation"></i> Critical</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ pole.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('poles.pole_history', pole_id=pole.pole_id) }}" class="btn btn-light border" title="View Pole History">
+                                    <i class="fa-solid fa-clock-rotate-left me-1"></i> History
+                                </a>
+                                <a href="{{ url_for('inspection.new_inspection', pole_id=pole.pole_id) }}" class="btn btn-outline-primary" title="Trigger New Inspection">
+                                    <i class="fa-solid fa-camera me-1"></i> Inspect
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            No poles found matching your search.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Add Pole Modal -->
+<div class="modal fade" id="addPoleModal" tabindex="-1" aria-labelledby="addPoleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="{{ url_for('poles.add_pole') }}" method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="addPoleModalLabel"><i class="fa-solid fa-plus-circle me-2 text-primary"></i>Register New Pole</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Pole ID <span class="text-danger">*</span></label>
+                        <input type="text" name="pole_id" class="form-control mono-text text-uppercase" placeholder="e.g. P-107" required>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Latitude <span class="text-danger">*</span></label>
+                            <input type="number" step="any" name="latitude" class="form-control mono-text" value="13.0895" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Longitude <span class="text-danger">*</span></label>
+                            <input type="number" step="any" name="longitude" class="form-control mono-text" value="80.2790" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Installation Date</label>
+                        <input type="date" name="installation_date" class="form-control" value="2024-01-15">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Initial Status</label>
+                        <select name="status" class="form-select">
+                            <option value="Normal" selected>Normal</option>
+                            <option value="Warning">Warning</option>
+                            <option value="Critical">Critical</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Pole Asset</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

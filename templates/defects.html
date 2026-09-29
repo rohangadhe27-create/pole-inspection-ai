@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}Defect Monitor - Power Line Pole AI{% endblock %}
+{% block page_title %}Active Defects & Priority Triage{% endblock %}
+
+{% block content %}
+<!-- Alert Header -->
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="metric-card border-danger">
+            <div class="metric-info">
+                <span class="metric-label">Critical Defects (HIGH Severity)</span>
+                <span class="metric-value text-danger">{{ critical_defects|length }}</span>
+            </div>
+            <div class="metric-icon-wrap red">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="metric-card border-warning">
+            <div class="metric-info">
+                <span class="metric-label">Warning Defects (MEDIUM Severity)</span>
+                <span class="metric-value text-warning">{{ warning_defects|length }}</span>
+            </div>
+            <div class="metric-icon-wrap amber">
+                <i class="fa-solid fa-wrench"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Critical Defects Priority Alert Section -->
+<div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-header bg-danger-subtle border-bottom border-danger-subtle py-3 d-flex justify-content-between align-items-center">
+        <h6 class="card-title m-0 fw-bold text-danger">
+            <i class="fa-solid fa-radiation me-2"></i>Critical Defects Requiring Immediate Action
+        </h6>
+        <span class="badge bg-danger">High Risk</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-custom table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Pole ID</th>
+                    <th>Defect Classification</th>
+                    <th>Confidence</th>
+                    <th>Image</th>
+                    <th>Required Operational Action</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if critical_defects %}
+                    {% for d in critical_defects %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('poles.pole_history', pole_id=d.pole_id) }}" class="pole-badge text-decoration-none">
+                                {{ d.pole_id }}
+                            </a>
+                        </td>
+                        <td><span class="fw-bold text-danger">{{ d.defect_type }}</span></td>
+                        <td class="mono-text small">{{ d.confidence }}%</td>
+                        <td>
+                            <a href="/{{ d.image_path }}" target="_blank">
+                                <img src="/{{ d.image_path }}" alt="Defect" class="rounded border" style="width: 50px; height: 38px; object-fit: cover;">
+                            </a>
+                        </td>
+                        <td class="small fw-semibold text-dark">{{ d.recommendation }}</td>
+                        <td class="text-end">
+                            <a href="{{ url_for('maintenance.list_maintenance', pole_id=d.pole_id) }}" class="btn btn-sm btn-danger py-1">
+                                <i class="fa-solid fa-wrench me-1"></i> Maintenance Task
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-success fw-semibold">
+                            <i class="fa-solid fa-circle-check me-1"></i> No critical defects found on the network.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- All Defects Table -->
+<div class="card border-0 shadow-sm rounded-3">
+    <div class="card-header bg-white border-bottom py-3">
+        <h6 class="card-title m-0 fw-bold text-dark">
+            <i class="fa-solid fa-list me-2 text-primary"></i>All Recorded Hardware Defects
+        </h6>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-custom table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Pole ID</th>
+                    <th>Date</th>
+                    <th>Defect</th>
+                    <th>Severity</th>
+                    <th>Confidence</th>
+                    <th>Recommendation</th>
+                    <th class="text-end">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if defects %}
+                    {% for d in defects %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('poles.pole_history', pole_id=d.pole_id) }}" class="pole-badge text-decoration-none">
+                                {{ d.pole_id }}
+                            </a>
+                        </td>
+                        <td class="text-muted small">{{ d.inspection_date[:10] if d.inspection_date else '-' }}</td>
+                        <td><span class="fw-semibold text-dark">{{ d.defect_type }}</span></td>
+                        <td>
+                            {% if d.severity == 'HIGH' %}
+                                <span class="badge-status-critical">HIGH</span>
+                            {% elif d.severity == 'MEDIUM' %}
+                                <span class="badge-status-warning">MEDIUM</span>
+                            {% else %}
+                                <span class="badge-status-normal">LOW</span>
+                            {% endif %}
+                        </td>
+                        <td class="mono-text small">{{ d.confidence }}%</td>
+                        <td class="small text-muted">{{ d.recommendation }}</td>
+                        <td class="text-end">
+                            <a href="{{ url_for('poles.pole_history', pole_id=d.pole_id) }}" class="btn btn-sm btn-light border py-1">
+                                View History
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">No defects recorded.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

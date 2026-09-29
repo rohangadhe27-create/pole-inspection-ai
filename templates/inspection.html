@@ -1,0 +1,686 @@
+{% extends "base.html" %}
+
+{% block title %}New Inspection - Power Line Pole AI{% endblock %}
+{% block page_title %}New Pole Inspection{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <!-- Left Column: Input Form & Upload -->
+    <div class="col-lg-5">
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="card-title m-0 fw-bold text-dark">
+                    <i class="fa-solid fa-camera me-2 text-primary"></i>Inspection Input
+                </h6>
+            </div>
+            <div class="card-body p-4">
+                <form id="inspectionForm" enctype="multipart/form-data">
+                    <!-- 1. Pole Identification & Location -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Pole Identification (ID) <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light"><i class="fa-solid fa-tower-observation"></i></span>
+                            <input type="text" class="form-control mono-text fw-bold text-uppercase" id="poleIdInput" name="pole_id" 
+                                   placeholder="e.g. P-104" value="{{ prefill_pole_id }}" onchange="fetchPoleDetails(this.value)" required>
+                            <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#qrScanModal" title="Scan Pole QR Code">
+                                <i class="fa-solid fa-qrcode"></i> Scan QR
+                            </button>
+                        </div>
+                        <div class="form-text small" id="registeredPolesContainer">
+                            {% if poles %}
+                            Registered poles: 
+                            {% for p in poles[:6] %}
+                                <a href="javascript:void(0)" onclick="setPoleId('{{ p.pole_id }}')" class="badge bg-light text-dark border text-decoration-none me-1">{{ p.pole_id }}</a>
+                            {% endfor %}
+                            {% else %}
+                            <span class="text-muted fst-italic">No poles registered yet. Enter a new ID below.</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Pole Geographic Location -->
+                    <div class="mb-3 p-3 bg-light rounded-3 border">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label fw-semibold mb-0 small text-uppercase text-muted">
+                                <i class="fa-solid fa-location-dot me-1 text-danger"></i>Pole Location Coordinates
+                            </label>
+                            <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" onclick="getCurrentGpsLocation()" title="Detect current GPS location">
+                                <i class="fa-solid fa-crosshairs me-1"></i> Get GPS
+                            </button>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label small text-muted mb-1">Latitude</label>
+                                <input type="number" step="any" class="form-control form-control-sm mono-text" id="latitudeInput" name="latitude" placeholder="e.g. 13.0827" value="13.0827">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small text-muted mb-1">Longitude</label>
+                                <input type="number" step="any" class="form-control form-control-sm mono-text" id="longitudeInput" name="longitude" placeholder="e.g. 80.2707" value="80.2707">
+                            </div>
+                        </div>
+                        <div class="form-text small mt-1 text-muted" id="locationStatusText">
+                            Auto-loads for registered poles or updates when saving.
+                        </div>
+                    </div>
+
+                    <!-- 2. Image Upload / File Selection -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Inspection Image <span class="text-danger">*</span></label>
+                        <div class="upload-dropzone" id="dropzone" onclick="document.getElementById('imageFileInput').click()">
+                            <i class="fa-solid fa-cloud-arrow-up dropzone-icon"></i>
+                            <div class="fw-semibold text-dark mb-1">Click to upload or drag & drop</div>
+                            <div class="text-muted small">Supports JPG, PNG, WEBP (Max 16 MB)</div>
+                            <input type="file" id="imageFileInput" name="image" accept="image/*" class="d-none" onchange="handleFileSelected(this)">
+                        </div>
+                        <div id="selectedFileBadge" class="mt-2 text-primary small fw-semibold d-none">
+                            <i class="fa-solid fa-image me-1"></i> <span id="fileNameDisplay">None selected</span>
+                        </div>
+                    </div>
+
+                    <!-- AI Mode / Defect Scenario Selector (For Demo Mode Testing) -->
+                    {% if is_demo_mode %}
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-dark">
+                            AI Scenario Mode <span class="badge bg-warning-subtle text-warning-emphasis border border-warning small">Demo</span>
+                        </label>
+                        <select class="form-select" id="forceDefectSelect" name="force_defect">
+                            <option value="">Auto-Detect from image/pole</option>
+                            <option value="Broken Insulator">Force: Broken Insulator (HIGH Severity)</option>
+                            <option value="Flashover/Damaged Insulator">Force: Flashover/Damaged Insulator (HIGH Severity)</option>
+                            <option value="Good Insulator">Force: Good Insulator (LOW Severity)</option>
+                        </select>
+                        <div class="form-text small">Allows testing different defect classes without retraining model.</div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Submit / Analyze Button -->
+                    <button type="button" id="analyzeBtn" class="btn btn-primary w-100 py-2 fw-semibold" onclick="runAiAnalysis()">
+                        <span id="analyzeSpinner" class="spinner-border spinner-border-sm me-2 d-none" role="status"></span>
+                        <i class="fa-solid fa-brain me-2" id="analyzeIcon"></i> <span id="analyzeBtnText">Analyze Image with AI</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: AI Detection & Recommendation Output -->
+    <div class="col-lg-7">
+        <div class="card border-0 shadow-sm rounded-3 h-100" id="resultsCard">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h6 class="card-title m-0 fw-bold text-dark">
+                    <i class="fa-solid fa-microchip me-2 text-primary"></i>AI Detection & Severity Assessment
+                </h6>
+                <div class="btn-group btn-group-sm" id="imageToggleGroup" style="display: none;">
+                    <button type="button" class="btn btn-outline-primary active" id="btnShowAnnotated" onclick="toggleImageView('annotated')">Annotated View</button>
+                    <button type="button" class="btn btn-outline-secondary" id="btnShowOriginal" onclick="toggleImageView('original')">Original</button>
+                </div>
+            </div>
+
+            <div class="card-body p-4">
+                <!-- Initial State (Before Analysis) -->
+                <div id="initialPlaceholder" class="text-center py-5">
+                    <div class="mb-3 text-muted">
+                        <i class="fa-solid fa-file-waveform" style="font-size: 3.5rem; opacity: 0.3;"></i>
+                    </div>
+                    <h5 class="fw-semibold text-secondary">Awaiting Inspection Image</h5>
+                    <p class="text-muted small mx-auto" style="max-width: 380px;">
+                        Select a Pole ID, upload or capture an inspection image, and click <strong>Analyze Image with AI</strong> to classify defects and generate maintenance recommendations.
+                    </p>
+                </div>
+
+                <!-- Analysis Results View -->
+                <div id="analysisResults" style="display: none;">
+                    <!-- Image Preview Container -->
+                    <div class="image-preview-box mb-4">
+                        <img id="previewImage" src="" alt="Inspection Preview">
+                        <div class="image-preview-overlay">
+                            <span id="aiModelBadge" class="badge bg-dark bg-opacity-75 border text-light">AI Detection</span>
+                        </div>
+                    </div>
+
+                    <!-- Defect & Severity Cards Row -->
+                    <div class="row g-3 mb-4">
+                        <!-- Detected Defect -->
+                        <div class="col-sm-6 col-xl-3">
+                            <div class="p-3 bg-light rounded-3 border h-100">
+                                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Insulator Defect</span>
+                                <h5 class="fw-bold mb-0 text-dark" id="resDefectType">Broken Insulator</h5>
+                            </div>
+                        </div>
+
+                        <!-- Insulator Health Logic (Good / Bad) -->
+                        <div class="col-sm-6 col-xl-3">
+                            <div class="p-3 bg-light rounded-3 border h-100">
+                                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Insulator Condition</span>
+                                <div id="resInsulatorHealthContainer">
+                                    <span class="badge bg-danger text-white py-1 px-2 fw-semibold fs-6" id="resInsulatorHealthBadge"><i class="fa-solid fa-triangle-exclamation me-1"></i> BAD / DEFECTIVE</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Confidence Score -->
+                        <div class="col-sm-6 col-xl-3">
+                            <div class="p-3 bg-light rounded-3 border h-100">
+                                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">AI Confidence</span>
+                                <div class="d-flex align-items-baseline gap-2">
+                                    <h5 class="fw-bold mb-0 text-primary mono-text" id="resConfidence">94.2%</h5>
+                                </div>
+                                <div class="progress mt-2" style="height: 6px;">
+                                    <div id="resConfidenceBar" class="progress-bar bg-primary" role="progressbar" style="width: 94%"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Severity Level -->
+                        <div class="col-sm-6 col-xl-3">
+                            <div class="p-3 bg-light rounded-3 border h-100">
+                                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Severity Level</span>
+                                <div id="resSeverityContainer">
+                                    <span class="badge-status-critical" id="resSeverityBadge">HIGH</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pole Information & Location Card -->
+                    <div class="card border border-primary-subtle bg-light rounded-3 mb-4">
+                        <div class="card-body p-3">
+                            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                                <div>
+                                    <span class="text-muted small text-uppercase fw-semibold d-block">
+                                        <i class="fa-solid fa-tower-observation text-primary me-1"></i>Pole Asset Details
+                                    </span>
+                                    <span class="fw-bold fs-5 text-dark mono-text" id="resPoleId">P-104</span>
+                                    <span class="badge ms-2" id="resPoleStatusBadge">Pending Review</span>
+                                </div>
+                                <div class="text-end">
+                                    <span class="text-muted small text-uppercase fw-semibold d-block">
+                                        <i class="fa-solid fa-location-dot text-danger me-1"></i>Geographic Location
+                                    </span>
+                                    <span class="mono-text fw-semibold text-dark" id="resPoleCoordinates">
+                                        Lat: 13.082700, Lng: 80.270700
+                                    </span>
+                                    <a id="resMapLink" href="https://maps.google.com/?q=13.0827,80.2707" target="_blank" class="small d-block text-primary text-decoration-none">
+                                        <i class="fa-solid fa-arrow-up-right-from-square me-1"></i>View on Google Maps
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Maintenance Recommendation Card -->
+                    <div class="alert alert-secondary border-0 mb-4 p-3 rounded-3" id="resRecAlert">
+                        <div class="d-flex align-items-start gap-3">
+                            <div class="fs-4" id="resRecIcon"><i class="fa-solid fa-triangle-exclamation text-danger"></i></div>
+                            <div>
+                                <span class="fw-bold d-block text-dark mb-1">Maintenance Recommendation:</span>
+                                <p class="mb-0 text-dark fw-medium" id="resRecommendation">Immediate inspection and replacement recommended.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-success flex-grow-1 py-2 fw-semibold" id="saveInspectionBtn" onclick="saveCurrentInspection()">
+                            <i class="fa-solid fa-floppy-disk me-1"></i> Save Inspection Record
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary py-2" onclick="resetForm()">
+                            <i class="fa-solid fa-rotate-left me-1"></i> New
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- QR Code Scanner Modal -->
+<div class="modal fade" id="qrScanModal" tabindex="-1" aria-labelledby="qrScanModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold" id="qrScanModalLabel"><i class="fa-solid fa-qrcode me-2"></i>Scan Pole QR Code</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center p-4">
+                <p class="text-muted small mb-3">Upload a QR code tag image from the pole or use a sample pole QR.</p>
+                <div class="mb-3">
+                    <input type="file" id="qrFileInput" class="form-control" accept="image/*" onchange="decodeQrFromFile(this)">
+                </div>
+                <div class="d-flex justify-content-center gap-2 mt-3">
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="setPoleFromQr('P-104')">Simulate P-104 QR</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="setPoleFromQr('P-106')">Simulate P-106 QR</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="setPoleFromQr('P-001')">Simulate P-001 QR</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Post-Save Navigation Modal -->
+<div class="modal fade" id="saveSuccessModal" tabindex="-1" aria-labelledby="saveSuccessModalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-success text-white py-3">
+                <h5 class="modal-title fw-bold" id="saveSuccessModalLabel">
+                    <i class="fa-solid fa-circle-check me-2"></i>Inspection Saved &amp; Dispatched Successfully
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert alert-light border border-success-subtle mb-4">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <div>
+                            <span class="text-muted small text-uppercase fw-semibold d-block">Target Asset</span>
+                            <span class="fw-bold fs-5 text-dark mono-text" id="modalPoleId">P-001</span>
+                            <span class="badge ms-2" id="modalPoleBadge">Normal</span>
+                        </div>
+                        <div>
+                            <span class="text-muted small text-uppercase fw-semibold d-block">Severity &amp; Condition</span>
+                            <span id="modalConditionBadge" class="fw-semibold"></span>
+                        </div>
+                        <div id="modalMaintAlertWrap">
+                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning px-2 py-1" id="modalMaintNotice">
+                                <i class="fa-solid fa-screwdriver-wrench me-1"></i>Maintenance Order Created
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <p class="text-muted fw-medium mb-3">All inspection results, defect triage, pole status, and location coordinates have been committed to the database. Where would you like to navigate next?</p>
+
+                <!-- Navigation Quick-Links Grid -->
+                <div class="row g-3">
+                    <div class="col-md-4 col-sm-6">
+                        <a href="{{ url_for('dashboard') }}" class="card text-decoration-none h-100 border hover-shadow transition p-3 text-center">
+                            <div class="text-primary fs-3 mb-2"><i class="fa-solid fa-chart-pie"></i></div>
+                            <h6 class="fw-bold text-dark mb-1">Dashboard</h6>
+                            <span class="text-muted small">Updated KPIs, charts &amp; recent activity</span>
+                        </a>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <a id="modalPoleHistoryLink" href="{{ url_for('poles.list_poles') }}" class="card text-decoration-none h-100 border hover-shadow transition p-3 text-center">
+                            <div class="text-info fs-3 mb-2"><i class="fa-solid fa-map-pin"></i></div>
+                            <h6 class="fw-bold text-dark mb-1">Poles</h6>
+                            <span class="text-muted small">View pole status &amp; lifecycle history</span>
+                        </a>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <a href="{{ url_for('inspection.list_inspections') }}" class="card text-decoration-none h-100 border hover-shadow transition p-3 text-center">
+                            <div class="text-success fs-3 mb-2"><i class="fa-solid fa-clipboard-check"></i></div>
+                            <h6 class="fw-bold text-dark mb-1">Inspections</h6>
+                            <span class="text-muted small">All past inspection records &amp; logs</span>
+                        </a>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <a href="{{ url_for('inspection.list_defects') }}" class="card text-decoration-none h-100 border hover-shadow transition p-3 text-center">
+                            <div class="text-danger fs-3 mb-2"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                            <h6 class="fw-bold text-dark mb-1">Defects</h6>
+                            <span class="text-muted small">Defect priority triage &amp; action list</span>
+                        </a>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <a href="{{ url_for('maintenance.list_maintenance') }}" class="card text-decoration-none h-100 border hover-shadow transition p-3 text-center">
+                            <div class="text-warning fs-3 mb-2"><i class="fa-solid fa-screwdriver-wrench"></i></div>
+                            <h6 class="fw-bold text-dark mb-1">Maintenance</h6>
+                            <span class="text-muted small">Repair tasks, scheduling &amp; status</span>
+                        </a>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <a href="{{ url_for('maintenance.view_reports') }}" class="card text-decoration-none h-100 border hover-shadow transition p-3 text-center">
+                            <div class="text-secondary fs-3 mb-2"><i class="fa-solid fa-file-invoice"></i></div>
+                            <h6 class="fw-bold text-dark mb-1">Reports</h6>
+                            <span class="text-muted small">Executive inspection summary report</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light py-2 px-4 justify-content-between">
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetForm()" data-bs-dismiss="modal">
+                    <i class="fa-solid fa-plus me-1"></i> Perform Another Inspection
+                </button>
+                <a id="modalPrimaryActionBtn" href="{{ url_for('dashboard') }}" class="btn btn-primary btn-sm px-3">
+                    Go to Dashboard <i class="fa-solid fa-arrow-right ms-1"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    let currentAnalysisData = null;
+    let selectedImageFile = null;
+
+    function setPoleId(id) {
+        document.getElementById('poleIdInput').value = id;
+        fetchPoleDetails(id);
+    }
+
+    async function fetchPoleDetails(poleId) {
+        if (!poleId || !poleId.trim()) return;
+        try {
+            const resp = await fetch(`/api/poles/${encodeURIComponent(poleId.trim().toUpperCase())}`);
+            if (resp.ok) {
+                const data = await resp.json();
+                if (data.success && data.pole) {
+                    if (data.pole.latitude) document.getElementById('latitudeInput').value = data.pole.latitude;
+                    if (data.pole.longitude) document.getElementById('longitudeInput').value = data.pole.longitude;
+                    const statusText = document.getElementById('locationStatusText');
+                    if (statusText) {
+                        statusText.innerHTML = `<span class="text-success"><i class="fa-solid fa-check me-1"></i>Found registered pole (Status: <strong>${data.pole.status}</strong>)</span>`;
+                    }
+                }
+            } else {
+                const statusText = document.getElementById('locationStatusText');
+                if (statusText) {
+                    statusText.innerHTML = `<span class="text-info"><i class="fa-solid fa-plus-circle me-1"></i>New pole ID. Coordinates will be registered with this inspection.</span>`;
+                }
+            }
+        } catch (e) {
+            console.warn('Could not auto-fetch pole details:', e);
+        }
+    }
+
+    function getCurrentGpsLocation() {
+        if (!navigator.geolocation) {
+            alert('Geolocation is not supported by your browser.');
+            return;
+        }
+        const statusText = document.getElementById('locationStatusText');
+        if (statusText) statusText.innerHTML = '<span class="text-primary"><i class="fa-solid fa-spinner fa-spin me-1"></i>Acquiring GPS location...</span>';
+        
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const lat = pos.coords.latitude.toFixed(6);
+                const lng = pos.coords.longitude.toFixed(6);
+                document.getElementById('latitudeInput').value = lat;
+                document.getElementById('longitudeInput').value = lng;
+                if (statusText) {
+                    statusText.innerHTML = `<span class="text-success"><i class="fa-solid fa-crosshairs me-1"></i>Acquired live GPS: ${lat}, ${lng}</span>`;
+                }
+            },
+            (err) => {
+                console.warn('GPS error:', err.message);
+                if (statusText) {
+                    statusText.innerHTML = `<span class="text-warning"><i class="fa-solid fa-triangle-exclamation me-1"></i>Could not acquire GPS: ${err.message}. Using default.</span>`;
+                }
+            },
+            { timeout: 10000, enableHighAccuracy: true }
+        );
+    }
+
+    function setPoleFromQr(id) {
+        setPoleId(id);
+        const modal = bootstrap.Modal.getInstance(document.getElementById('qrScanModal'));
+        if (modal) modal.hide();
+    }
+
+    function handleFileSelected(input) {
+        if (input.files && input.files[0]) {
+            selectedImageFile = input.files[0];
+            document.getElementById('fileNameDisplay').textContent = selectedImageFile.name;
+            document.getElementById('selectedFileBadge').classList.remove('d-none');
+        }
+    }
+
+    // Drag and drop handlers
+    const dropzone = document.getElementById('dropzone');
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropzone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropzone.classList.add('dragover');
+        }, false);
+    });
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropzone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropzone.classList.remove('dragover');
+        }, false);
+    });
+    dropzone.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files.length) {
+            document.getElementById('imageFileInput').files = files;
+            handleFileSelected(document.getElementById('imageFileInput'));
+        }
+    });
+
+    // Run AI Detection
+    async function runAiAnalysis() {
+        const poleId = document.getElementById('poleIdInput').value.trim();
+        const fileInput = document.getElementById('imageFileInput');
+        const lat = document.getElementById('latitudeInput').value.trim();
+        const lng = document.getElementById('longitudeInput').value.trim();
+
+        if (!poleId) {
+            alert('Please enter a Pole ID.');
+            return;
+        }
+
+        if (!fileInput.files || !fileInput.files[0]) {
+            alert('Please select or upload an inspection image first.');
+            return;
+        }
+
+        // Show loading state
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const spinner = document.getElementById('analyzeSpinner');
+        const icon = document.getElementById('analyzeIcon');
+        const btnText = document.getElementById('analyzeBtnText');
+
+        analyzeBtn.disabled = true;
+        spinner.classList.remove('d-none');
+        icon.classList.add('d-none');
+        btnText.textContent = 'Running AI Detection...';
+
+        const formData = new FormData();
+        formData.append('pole_id', poleId);
+        formData.append('image', fileInput.files[0]);
+        if (lat) formData.append('latitude', lat);
+        if (lng) formData.append('longitude', lng);
+
+        const forceDefectSelect = document.getElementById('forceDefectSelect');
+        if (forceDefectSelect && forceDefectSelect.value) {
+            formData.append('force_defect', forceDefectSelect.value);
+        }
+
+        try {
+            const response = await fetch("{{ url_for('inspection.analyze_image') }}", {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                // Attach form coordinates if pole doesn't have them yet
+                data.latitude = lat || (data.pole_info ? data.pole_info.latitude : 13.0827);
+                data.longitude = lng || (data.pole_info ? data.pole_info.longitude : 80.2707);
+                currentAnalysisData = data;
+                displayAnalysisResults(data);
+            } else {
+                alert('Analysis failed: ' + (data.error || 'Unknown error'));
+            }
+        } catch (err) {
+            console.error('Network error:', err);
+            alert('Network error communicating with AI service.');
+        } finally {
+            analyzeBtn.disabled = false;
+            spinner.classList.add('d-none');
+            icon.classList.remove('d-none');
+            btnText.textContent = 'Analyze Image with AI';
+        }
+    }
+
+    // Render results on page
+    function displayAnalysisResults(data) {
+        document.getElementById('initialPlaceholder').style.display = 'none';
+        document.getElementById('analysisResults').style.display = 'block';
+        document.getElementById('imageToggleGroup').style.display = 'inline-flex';
+
+        // Set image preview
+        const imgEl = document.getElementById('previewImage');
+        imgEl.src = data.annotated_image_path;
+
+        // Model badge
+        document.getElementById('aiModelBadge').textContent = data.model_source;
+
+        // Defect type & confidence
+        document.getElementById('resDefectType').textContent = data.defect_type;
+        document.getElementById('resConfidence').textContent = `${data.confidence.toFixed(1)}%`;
+        document.getElementById('resConfidenceBar').style.width = `${data.confidence}%`;
+
+        // Insulator Good/Bad logic
+        const healthContainer = document.getElementById('resInsulatorHealthContainer');
+        const isGood = (data.defect_type === 'Good Insulator' || data.severity === 'LOW' || data.severity === 'NORMAL');
+        if (isGood) {
+            healthContainer.innerHTML = '<span class="badge bg-success text-white py-1 px-2 fw-semibold fs-6"><i class="fa-solid fa-circle-check me-1"></i> GOOD / HEALTHY</span>';
+        } else {
+            healthContainer.innerHTML = '<span class="badge bg-danger text-white py-1 px-2 fw-semibold fs-6"><i class="fa-solid fa-triangle-exclamation me-1"></i> BAD / DEFECTIVE</span>';
+        }
+
+        // Severity badge
+        const sevContainer = document.getElementById('resSeverityContainer');
+        const sevAlert = document.getElementById('resRecAlert');
+        const recIcon = document.getElementById('resRecIcon');
+
+        if (data.severity === 'HIGH') {
+            sevContainer.innerHTML = '<span class="badge-status-critical"><i class="fa-solid fa-circle-exclamation"></i> HIGH</span>';
+            sevAlert.className = 'alert alert-danger border-0 mb-4 p-3 rounded-3';
+            recIcon.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-danger"></i>';
+        } else if (data.severity === 'MEDIUM') {
+            sevContainer.innerHTML = '<span class="badge-status-warning"><i class="fa-solid fa-triangle-exclamation"></i> MEDIUM</span>';
+            sevAlert.className = 'alert alert-warning border-0 mb-4 p-3 rounded-3';
+            recIcon.innerHTML = '<i class="fa-solid fa-wrench text-warning"></i>';
+        } else {
+            sevContainer.innerHTML = '<span class="badge-status-normal"><i class="fa-solid fa-check-circle"></i> LOW / NORMAL</span>';
+            sevAlert.className = 'alert alert-success border-0 mb-4 p-3 rounded-3';
+            recIcon.innerHTML = '<i class="fa-solid fa-shield text-success"></i>';
+        }
+
+        // Pole Asset & Location Information
+        document.getElementById('resPoleId').textContent = data.pole_id;
+        const poleStatusBadge = document.getElementById('resPoleStatusBadge');
+        const poleStatus = (data.pole_info && data.pole_info.status) ? data.pole_info.status : (data.severity === 'HIGH' ? 'Critical' : (data.severity === 'MEDIUM' ? 'Warning' : 'Normal'));
+        
+        if (poleStatus === 'Critical') {
+            poleStatusBadge.className = 'badge bg-danger';
+            poleStatusBadge.textContent = 'Status: Critical';
+        } else if (poleStatus === 'Warning') {
+            poleStatusBadge.className = 'badge bg-warning text-dark';
+            poleStatusBadge.textContent = 'Status: Warning';
+        } else {
+            poleStatusBadge.className = 'badge bg-success';
+            poleStatusBadge.textContent = 'Status: Normal';
+        }
+
+        const latVal = (data.pole_info && data.pole_info.latitude) || data.latitude || 13.0827;
+        const lngVal = (data.pole_info && data.pole_info.longitude) || data.longitude || 80.2707;
+        const latNum = parseFloat(latVal).toFixed(6);
+        const lngNum = parseFloat(lngVal).toFixed(6);
+
+        document.getElementById('resPoleCoordinates').textContent = `Lat: ${latNum}, Lng: ${lngNum}`;
+        document.getElementById('resMapLink').href = `https://www.google.com/maps?q=${latNum},${lngNum}`;
+
+        // Recommendation
+        document.getElementById('resRecommendation').textContent = data.recommendation;
+    }
+
+    // Toggle between original and annotated views
+    function toggleImageView(type) {
+        if (!currentAnalysisData) return;
+        const imgEl = document.getElementById('previewImage');
+        const btnAnnotated = document.getElementById('btnShowAnnotated');
+        const btnOriginal = document.getElementById('btnShowOriginal');
+
+        if (type === 'annotated') {
+            imgEl.src = currentAnalysisData.annotated_image_path;
+            btnAnnotated.className = 'btn btn-outline-primary active';
+            btnOriginal.className = 'btn btn-outline-secondary';
+        } else {
+            imgEl.src = currentAnalysisData.original_image_path;
+            btnOriginal.className = 'btn btn-outline-primary active';
+            btnAnnotated.className = 'btn btn-outline-secondary';
+        }
+    }
+
+    // Save inspection
+    async function saveCurrentInspection() {
+        if (!currentAnalysisData) return;
+
+        const saveBtn = document.getElementById('saveInspectionBtn');
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+
+        const latInput = document.getElementById('latitudeInput').value.trim();
+        const lngInput = document.getElementById('longitudeInput').value.trim();
+        if (latInput) currentAnalysisData.latitude = latInput;
+        if (lngInput) currentAnalysisData.longitude = lngInput;
+
+        try {
+            const resp = await fetch("{{ url_for('inspection.save_inspection') }}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(currentAnalysisData)
+            });
+
+            const result = await resp.json();
+            if (result.success) {
+                // Populate post-save modal details
+                document.getElementById('modalPoleId').textContent = currentAnalysisData.pole_id;
+                document.getElementById('modalPoleHistoryLink').href = `/poles/${encodeURIComponent(currentAnalysisData.pole_id)}`;
+                
+                const poleBadge = document.getElementById('modalPoleBadge');
+                poleBadge.className = 'badge ' + (result.pole_status === 'Critical' ? 'bg-danger' : (result.pole_status === 'Warning' ? 'bg-warning text-dark' : 'bg-success'));
+                poleBadge.textContent = result.pole_status || 'Normal';
+
+                const condBadge = document.getElementById('modalConditionBadge');
+                const isGood = (currentAnalysisData.defect_type === 'Good Insulator' || currentAnalysisData.severity === 'LOW' || currentAnalysisData.severity === 'NORMAL');
+                if (isGood) {
+                    condBadge.innerHTML = '<span class="badge bg-success"><i class="fa-solid fa-check-circle me-1"></i>Good Insulator (Healthy)</span>';
+                } else {
+                    condBadge.innerHTML = `<span class="badge bg-danger"><i class="fa-solid fa-triangle-exclamation me-1"></i>${currentAnalysisData.defect_type} (${currentAnalysisData.severity})</span>`;
+                }
+
+                const maintAlert = document.getElementById('modalMaintAlertWrap');
+                if (result.maintenance_id) {
+                    maintAlert.style.display = 'block';
+                    document.getElementById('modalMaintNotice').innerHTML = `<i class="fa-solid fa-screwdriver-wrench me-1"></i> Maintenance Order #${result.maintenance_id} Created`;
+                } else {
+                    maintAlert.style.display = 'none';
+                }
+
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="fa-solid fa-circle-check me-1"></i> Saved';
+
+                // Display the interactive modal to route anywhere
+                const modalEl = new bootstrap.Modal(document.getElementById('saveSuccessModal'));
+                modalEl.show();
+            } else {
+                alert('Error saving inspection: ' + result.error);
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> Save Inspection Record';
+            }
+        } catch (err) {
+            console.error('Save failed:', err);
+            alert('Failed to save inspection to database.');
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> Save Inspection Record';
+        }
+    }
+
+    function resetForm() {
+        document.getElementById('inspectionForm').reset();
+        document.getElementById('fileNameDisplay').textContent = '';
+        document.getElementById('selectedFileBadge').classList.add('d-none');
+        document.getElementById('initialPlaceholder').style.display = 'block';
+        document.getElementById('analysisResults').style.display = 'none';
+        document.getElementById('imageToggleGroup').style.display = 'none';
+        currentAnalysisData = null;
+        selectedImageFile = null;
+    }
+</script>
+{% endblock %}

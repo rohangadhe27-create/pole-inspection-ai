@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Executive Reports - Power Line Pole AI{% endblock %}
+{% block page_title %}Executive Inspection & Maintenance Report{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <p class="text-muted small mb-0">Summary intelligence generated across all monitored distribution assets.</p>
+    </div>
+    <button class="btn btn-outline-dark btn-sm" onclick="window.print()">
+        <i class="fa-solid fa-print me-1"></i> Print / Export PDF
+    </button>
+</div>
+
+<!-- Summary Metrics Row -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="metric-card">
+            <div class="metric-info">
+                <span class="metric-label">Network Assets</span>
+                <span class="metric-value">{{ total_poles }}</span>
+            </div>
+            <div class="metric-icon-wrap blue"><i class="fa-solid fa-tower-broadcast"></i></div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="metric-card">
+            <div class="metric-info">
+                <span class="metric-label">Inspections Completed</span>
+                <span class="metric-value">{{ total_inspections }}</span>
+            </div>
+            <div class="metric-icon-wrap purple"><i class="fa-solid fa-clipboard-check"></i></div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="metric-card">
+            <div class="metric-info">
+                <span class="metric-label">Critical Defects</span>
+                <span class="metric-value text-danger">{{ critical_defects }}</span>
+            </div>
+            <div class="metric-icon-wrap red"><i class="fa-solid fa-radiation"></i></div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="metric-card">
+            <div class="metric-info">
+                <span class="metric-label">Maint. Resolution Rate</span>
+                <span class="metric-value text-success">{{ resolution_rate }}%</span>
+            </div>
+            <div class="metric-icon-wrap green"><i class="fa-solid fa-percent"></i></div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Inspections Summary Table -->
+<div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-header bg-white border-bottom py-3">
+        <h6 class="card-title m-0 fw-bold text-dark">
+            <i class="fa-solid fa-file-contract me-2 text-primary"></i>Recent Inspection Log
+        </h6>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-custom table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Pole ID</th>
+                    <th>Date</th>
+                    <th>Defect</th>
+                    <th>Confidence</th>
+                    <th>Severity</th>
+                    <th>Operational Recommendation</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for i in recent_inspections %}
+                <tr>
+                    <td class="mono-text fw-bold">{{ i.pole_id }}</td>
+                    <td class="small text-muted">{{ i.inspection_date }}</td>
+                    <td>{{ i.defect_type }}</td>
+                    <td class="mono-text small">{{ i.confidence }}%</td>
+                    <td>
+                        {% if i.severity == 'HIGH' %}
+                            <span class="badge-status-critical">HIGH</span>
+                        {% elif i.severity == 'MEDIUM' %}
+                            <span class="badge-status-warning">MEDIUM</span>
+                        {% else %}
+                            <span class="badge-status-normal">LOW</span>
+                        {% endif %}
+                    </td>
+                    <td class="small">{{ i.recommendation }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Maintenance Audit Summary Table -->
+<div class="card border-0 shadow-sm rounded-3">
+    <div class="card-header bg-white border-bottom py-3">
+        <h6 class="card-title m-0 fw-bold text-dark">
+            <i class="fa-solid fa-check-double me-2 text-warning"></i>Maintenance Task Audit
+        </h6>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-custom table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Task ID</th>
+                    <th>Pole ID</th>
+                    <th>Maintenance Action</th>
+                    <th>Assigned Crew</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in recent_maintenance %}
+                <tr>
+                    <td class="mono-text small">#{{ m.maintenance_id }}</td>
+                    <td class="mono-text fw-bold">{{ m.pole_id }}</td>
+                    <td class="fw-semibold text-dark">{{ m.action }}</td>
+                    <td>{{ m.assigned_to or 'Unassigned' }}</td>
+                    <td class="small text-muted">{{ m.maintenance_date }}</td>
+                    <td>
+                        <span class="badge bg-light text-dark border">{{ m.status }}</span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: power-line-pole-ai
+    env: docker
+    dockerfilePath: Dockerfile
+    plan: free
+    region: oregon
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DB_TYPE
+        value: sqlite
+      - key: PORT
+        value: 5000
+    healthCheckPath: /
